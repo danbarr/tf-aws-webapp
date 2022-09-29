@@ -33,6 +33,7 @@ resource "aws_vpc" "hashiapp" {
 resource "aws_subnet" "hashiapp" {
   vpc_id     = aws_vpc.hashiapp.id
   cidr_block = var.subnet_prefix
+  availability_zone = "${var.region}a"
 
   tags = {
     Name = "${var.prefix}-subnet"
