@@ -39,10 +39,16 @@ variable "address_space" {
   default     = "10.0.0.0/16"
 }
 
-variable "subnet_prefix" {
+variable "subnet_prefix_primary" {
   type        = string
-  description = "The address prefix to use for the subnet."
+  description = "The address prefix to use for the primary subnet."
   default     = "10.0.10.0/24"
+}
+
+variable "subnet_prefix_secondary" {
+  type        = string
+  description = "The address prefix to use for the secondary subnet."
+  default     = "10.0.20.0/24"
 }
 
 variable "instance_type" {

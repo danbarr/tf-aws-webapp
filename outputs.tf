@@ -1,8 +1,8 @@
 # Outputs file
 output "app_url" {
-  value = "http://${aws_instance.hashiapp.public_dns}"
+  value = "http://${aws_lb.hashiapp.dns_name}"
 }
 
 output "ami_id" {
-  value = aws_instance.hashiapp.ami
+  value = data.hcp_packer_image.ubuntu.cloud_image_id
 }
