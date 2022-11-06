@@ -153,6 +153,18 @@ resource "aws_instance" "hashicafe" {
   vpc_security_group_ids      = [aws_security_group.hashicafe.id]
   key_name                    = aws_key_pair.hashicafe.key_name
 
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
+
+  root_block_device {
+    volume_type = "gp3"
+    iops        = 3000
+    throughput  = 125
+    encrypted   = true
+  }
+
   tags = {
     Name = "${var.prefix}-hashicafe-instance"
   }
