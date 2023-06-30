@@ -50,16 +50,54 @@ resource "random_integer" "product" {
   }
 }
 
-data "hcp_packer_iteration" "ubuntu-webserver" {
-  bucket_name = var.packer_bucket
-  channel     = var.packer_channel
-}
-
 data "hcp_packer_image" "ubuntu-webserver" {
   bucket_name    = var.packer_bucket
   cloud_provider = "aws"
-  iteration_id   = data.hcp_packer_iteration.ubuntu-webserver.ulid
+  channel = var.packer_channel
   region         = var.region
+
+  lifecycle {
+    postcondition {
+      condition = timecmp(plantimestamp(), timeadd(self.created_at, "720h")) < 0
+      error_message = "The selected image is more than 30 days old."
+    }
+
+    postcondition {
+      condition = self.revoke_at == null
+      error_message = "The selected image is scheduled to be revoked."
+    }
+  }
+}
+
+data "aws_caller_identity" "current" {}
+
+data "aws_availability_zones" "all" {
+  filter {
+    # Don't want local zones
+    name   = "opt-in-status"
+    values = ["opt-in-not-required"]
+  }
+}
+
+data "aws_availability_zone" "selected" {
+  name = data.aws_availability_zones.all.names[0]
+  lifecycle {
+    postcondition {
+      condition = self.state == "available"
+      error_message = "The selected availability zone is degraded or unavailable."
+    }
+  }
+}
+
+data "aws_ec2_instance_type" "selected" {
+  instance_type = var.instance_type
+
+  lifecycle {
+    postcondition {
+      condition = self.ebs_optimized_support != "unsupported"
+      error_message = "The EC2 instance type (${var.instance_type}) must support EBS optimization."
+    }
+  }
 }
 
 resource "aws_vpc" "hashicafe" {
@@ -81,6 +119,7 @@ resource "aws_vpc" "hashicafe" {
 resource "aws_subnet" "hashicafe" {
   vpc_id     = aws_vpc.hashicafe.id
   cidr_block = var.subnet_prefix
+  availability_zone = data.aws_availability_zone.selected.name
 
   tags = {
     Name = "${var.prefix}-subnet"
@@ -164,6 +203,25 @@ resource "aws_instance" "hashicafe" {
     postcondition {
       condition     = self.public_dns != ""
       error_message = "EC2 instance must be in a VPC that has public DNS hostnames enabled."
+    }
+
+    postcondition {
+      condition     = self.instance_state == "running"
+      error_message = "EC2 instance must be running."
+    }
+  }
+}
+
+data "aws_ebs_volume" "root" {
+  filter {
+    name = "volume-id"
+    values = [aws_instance.hashicafe.root_block_device[0].volume_id]
+  }
+
+  lifecycle {
+    postcondition {
+      condition     = self.encrypted
+      error_message = "The server's root volume is not encrypted."
     }
   }
 }
