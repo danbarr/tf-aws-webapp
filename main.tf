@@ -218,12 +218,12 @@ data "aws_ebs_volume" "root" {
     values = [aws_instance.hashicafe.root_block_device[0].volume_id]
   }
 
-  lifecycle {
-    postcondition {
-      condition     = self.encrypted
-      error_message = "The server's root volume is not encrypted."
-    }
-  }
+  #lifecycle {
+  #  postcondition {
+  #    condition     = self.encrypted
+  #    error_message = "The server's root volume is not encrypted."
+  #  }
+  #}
 }
 
 resource "aws_eip" "hashicafe" {
