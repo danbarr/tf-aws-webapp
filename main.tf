@@ -38,6 +38,22 @@ provider "aws" {
   }
 }
 
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "5.1.2"
+  name    = "demo-vpc"
+  cidr    = var.subnet_prefix
+}
+
+module "security_group" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "5.1.0"
+}
+
+module "ec2" {
+  source = "./modules/ec2"
+}
+
 locals {
   timestamp = timestamp()
 }
@@ -63,7 +79,7 @@ data "hcp_packer_image" "ubuntu-webserver" {
 }
 
 resource "aws_vpc" "hashicafe" {
-  cidr_block           = var.address_space
+  cidr_block           = var.cidr
   enable_dns_hostnames = true
 
   tags = {
