@@ -1,16 +1,18 @@
 terraform {
+  required_version = ">= 1.5"
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 4.0"
+      version = "~> 5.0"
     }
     hcp = {
       source  = "hashicorp/hcp"
-      version = "~> 0.46.0"
+      version = "~> 0.82"
     }
     null = {
       source  = "hashicorp/null"
-      version = "~> 3.1"
+      version = "~> 3.2"
     }
     random = {
       source  = "hashicorp/random"
@@ -29,34 +31,23 @@ provider "aws" {
   default_tags {
     tags = {
       environment = var.env
-      department  = "TPMM"
+      department  = var.department
+      owner       = var.owner
       application = "HashiCafe website"
     }
   }
 }
 
-locals {
-  timestamp = timestamp()
-}
-
 resource "random_integer" "product" {
   min = 0
   max = length(var.hashi_products) - 1
-  keepers = {
-    "timestamp" = local.timestamp
-  }
 }
 
-data "hcp_packer_iteration" "ubuntu-webserver" {
-  bucket_name = var.packer_bucket
-  channel     = var.packer_channel
-}
-
-data "hcp_packer_image" "ubuntu-webserver" {
-  bucket_name    = var.packer_bucket
-  cloud_provider = "aws"
-  iteration_id   = data.hcp_packer_iteration.ubuntu-webserver.ulid
-  region         = var.region
+data "hcp_packer_artifact" "ubuntu-webserver" {
+  bucket_name  = var.packer_bucket
+  channel_name = var.packer_channel
+  platform     = "aws"
+  region       = var.region
 }
 
 resource "aws_vpc" "hashicafe" {
@@ -89,27 +80,6 @@ resource "aws_security_group" "hashicafe" {
 
   vpc_id = aws_vpc.hashicafe.id
 
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   egress {
     from_port       = 0
     to_port         = 0
@@ -121,6 +91,17 @@ resource "aws_security_group" "hashicafe" {
   tags = {
     Name = "${var.prefix}-security-group"
   }
+}
+
+resource "aws_security_group_rule" "ingress" {
+  for_each          = toset(["22", "80", "443"])
+  security_group_id = aws_security_group.hashicafe.id
+  type              = "ingress"
+  description       = "Inbound port ${each.value}"
+  from_port         = each.value
+  to_port           = each.value
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
 }
 
 resource "aws_internet_gateway" "hashicafe" {
@@ -146,7 +127,7 @@ resource "aws_route_table_association" "hashicafe" {
 }
 
 resource "aws_instance" "hashicafe" {
-  ami                         = data.hcp_packer_image.ubuntu-webserver.cloud_image_id
+  ami                         = data.hcp_packer_artifact.ubuntu-webserver.external_identifier
   instance_type               = var.instance_type
   associate_public_ip_address = true
   subnet_id                   = aws_subnet.hashicafe.id
@@ -171,13 +152,8 @@ resource "aws_instance" "hashicafe" {
 
   lifecycle {
     precondition {
-      condition     = data.hcp_packer_image.ubuntu-webserver.region == var.region
+      condition     = data.hcp_packer_artifact.ubuntu-webserver.region == var.region
       error_message = "The selected image must be in the same region as the deployed resources."
-    }
-
-    postcondition {
-      condition     = self.ami == data.hcp_packer_image.ubuntu-webserver.cloud_image_id
-      error_message = "A newer source AMI is available in the HCP Packer channel, please re-deploy."
     }
 
     postcondition {
@@ -188,8 +164,7 @@ resource "aws_instance" "hashicafe" {
 }
 
 resource "aws_eip" "hashicafe" {
-  instance = aws_instance.hashicafe.id
-  vpc      = true
+  domain = "vpc"
 }
 
 resource "aws_eip_association" "hashicafe" {
@@ -202,10 +177,6 @@ resource "aws_eip_association" "hashicafe" {
 
 resource "null_resource" "configure-web-app" {
   depends_on = [aws_eip_association.hashicafe]
-
-  triggers = {
-    build_number = local.timestamp
-  }
 
   connection {
     type        = "ssh"

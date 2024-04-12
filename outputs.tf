@@ -1,9 +1,11 @@
 output "app_url" {
-  value = "http://${aws_eip.hashicafe.public_dns}"
+  description = "URL of the deployed webapp."
+  value       = "http://${aws_eip.hashicafe.public_dns}"
 }
 
 output "ami_id" {
-  value = aws_instance.hashicafe.ami
+  description = "ID of the AMI resolved from HCP Packer."
+  value       = aws_instance.hashicafe.ami
 }
 
 output "product" {
