@@ -29,12 +29,14 @@ provider "aws" {
   region = var.region
 
   default_tags {
-    tags = {
-      environment = var.env
-      department  = var.department
-      owner       = var.owner
-      application = "HashiCafe website"
-    }
+    tags = merge(
+      {
+        environment = var.env
+        department  = var.department
+        owner       = var.owner
+        application = "HashiCafe website"
+      },
+    var.extra_tags)
   }
 }
 

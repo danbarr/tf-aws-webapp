@@ -26,6 +26,12 @@ variable "owner" {
   default     = "web.developer"
 }
 
+variable "extra_tags" {
+  description = "Additional tags to add to resources."
+  type        = map(string)
+  default     = {}
+}
+
 variable "address_space" {
   type        = string
   description = "The address space that is used by the virtual network. You can supply more than one address space. Changing this forces a new resource to be created."
